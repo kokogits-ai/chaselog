@@ -1,0 +1,6 @@
+{
+  "name": "Elite Banking Dashboard",
+  "description": "A premium, pixel-accurate banking dashboard replica with transaction history, transfers, and account management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
