@@ -83,7 +83,10 @@ export default function App() {
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authStep, setAuthStep] = useState<'login' | 'pin' | 'authenticated'>('login');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authStep, setAuthStep] = useState<'login' | 'pin' | 'authenticated'>(() => {
+    return (localStorage.getItem('authStep') as any) || 'login';
+  });
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,20 +95,31 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('authStep', authStep);
+  }, [authStep]);
+
   const handleTransferSubmit = (e: FormEvent) => {
     e.preventDefault();
     setShowRestrictionModal(true);
   };
 
   const handleLoginSuccess = () => setAuthStep('pin');
-  const handlePinSuccess = () => setAuthStep('authenticated');
+  const handlePinSuccess = () => {
+    setIsAuthenticating(true);
+    setTimeout(() => {
+      setIsAuthenticating(false);
+      setAuthStep('authenticated');
+    }, 2000);
+  };
   const handleLogout = () => {
+    localStorage.removeItem('authStep');
     setAuthStep('login');
     setActiveTab('dashboard');
     setIsSidebarOpen(false);
   };
 
-  if (isLoading) {
+  if (isLoading || isAuthenticating) {
     return (
       <div id="loader" className="fixed inset-0 bg-[#005db9] flex flex-col items-center justify-center z-50">
         <motion.div 
@@ -113,7 +127,9 @@ export default function App() {
           transition={{ duration: 2, repeat: Infinity }}
           className="w-16 h-16 border-4 border-white border-t-transparent rounded-full mb-4"
         />
-        <h1 className="text-white font-sans font-medium text-xl tracking-tight">Securing Connection...</h1>
+        <h1 className="text-white font-sans font-medium text-xl tracking-tight">
+          {isAuthenticating ? 'Authorizing Secure Access...' : 'Securing Connection...'}
+        </h1>
       </div>
     );
   }
@@ -158,11 +174,13 @@ export default function App() {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-lg font-bold tracking-tighter">CHASE</span>
-              <div className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">
-                <ShieldAlert size={14} />
+              <span className="text-2xl font-black tracking-tighter font-display">CHASE</span>
+              <div className="w-9 h-9 flex items-center justify-center">
+                 <svg viewBox="0 0 100 100" className="w-full h-full text-white fill-current">
+                    <path d="M50 0 L85 15 L100 50 L85 85 L50 100 L15 85 L0 50 L15 15 Z M50 20 L27 30 L20 50 L27 70 L50 80 L73 70 L80 50 L73 30 Z" />
+                 </svg>
               </div>
-              <h2 className="text-base font-medium">Hi, {USER_DATA.fullName}</h2>
+              <h2 className="text-base font-semibold">Hi, {USER_DATA.fullName}</h2>
             </div>
             <button 
               onClick={() => setShowRestrictionModal(true)}
@@ -358,7 +376,7 @@ function DashboardOverview({ onRestriction, onSelectSavings, onSelectProfile }: 
             <button onClick={onSelectSavings} className="flex justify-between items-start group text-left w-full">
               <div className="text-left">
                 <h4 className="text-[#005db9] font-bold text-sm flex items-center gap-1 group-hover:underline">
-                  ELITE SAVINGS <ChevronRight size={14} />
+                  CHECK SAVINGS <ChevronRight size={14} />
                 </h4>
                 <p className="text-slate-400 text-[11px] font-bold mt-1 tracking-widest">** 9346</p>
               </div>
@@ -804,34 +822,36 @@ function LoginView({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <div className="min-h-screen bg-[#005db9] flex flex-col items-center justify-center p-6 font-sans">
-      <div className="mb-8 text-center">
-        {/* Chase-style Octagon Logo */}
-        <div className="w-12 h-12 mx-auto mb-6 flex items-center justify-center">
+      <div className="mb-8 text-center flex items-center justify-center gap-4">
+        <h1 className="text-3xl font-black text-white tracking-tighter uppercase font-display">CHASE</h1>
+        {/* Chase-style Octagon Logo beside Text */}
+        <div className="w-10 h-10">
            <svg viewBox="0 0 100 100" className="w-full h-full text-white fill-current">
               <path d="M50 0 L85 15 L100 50 L85 85 L50 100 L15 85 L0 50 L15 15 Z M50 20 L27 30 L20 50 L27 70 L50 80 L73 70 L80 50 L73 30 Z" />
            </svg>
         </div>
-        <h1 className="text-2xl font-medium text-white tracking-tight">Secure Sign In</h1>
       </div>
+      
+      <p className="text-white text-lg font-medium mb-8">Secure Sign In</p>
 
       <div className="w-full max-w-[400px] bg-white rounded-lg shadow-2xl overflow-hidden">
         <div className="p-8 pb-4 text-center">
           <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
             <Fingerprint size={28} />
           </div>
-          <p className="text-sm font-medium text-slate-600 mb-1">Touch ID for Chase</p>
-          <p className="text-xs text-slate-400">Log on to view your accounts.</p>
+          <p className="text-sm font-bold text-slate-700 mb-1">Touch ID for Chase</p>
+          <p className="text-xs text-slate-400 font-medium">Log on to view your accounts.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 pt-2 space-y-6">
           <div className="space-y-1 border-b border-slate-200">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-[#005db9]">Email</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-[#005db9]">User ID</label>
             <input 
               required 
               type="email" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full pb-3 bg-transparent outline-none transition-all text-base font-medium text-slate-800 placeholder:text-slate-300" 
+              className="w-full pb-3 bg-transparent outline-none transition-all text-base font-bold text-slate-800 placeholder:text-slate-300" 
               placeholder="Username"
             />
           </div>
@@ -843,26 +863,26 @@ function LoginView({ onSuccess }: { onSuccess: () => void }) {
               type="password" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pb-3 bg-transparent outline-none transition-all text-base font-medium text-slate-800 placeholder:text-slate-300" 
+              className="w-full pb-3 bg-transparent outline-none transition-all text-base font-bold text-slate-800 placeholder:text-slate-300" 
               placeholder="Enter passcode"
             />
           </div>
 
-          {error && <p className="text-rose-500 text-[10px] font-bold uppercase text-center">{error}</p>}
+          {error && <p className="text-rose-500 text-[10px] font-bold uppercase text-center mt-2">{error}</p>}
 
           <div className="pt-2">
             <button type="submit" className="w-full py-4 bg-[#005db9] text-white rounded-md font-bold text-sm tracking-wide hover:bg-[#004a99] transition-all uppercase">
               Sign In
             </button>
             <div className="mt-6 flex justify-between items-center text-[11px] font-bold text-[#005db9] uppercase tracking-wider">
-              <button type="button">Forgot Password?</button>
-              <button type="button">Sign Up</button>
+              <button type="button" className="hover:underline">Forgot Password?</button>
+              <button type="button" className="hover:underline">Sign Up</button>
             </div>
           </div>
         </form>
       </div>
       
-      <div className="mt-10 text-white/60 text-[10px] font-medium uppercase tracking-[0.2em] text-center">
+      <div className="mt-12 text-white/60 text-[10px] font-bold uppercase tracking-[0.2em] text-center">
         Member FDIC © 2026 JPMorgan Chase & Co.
       </div>
     </div>
