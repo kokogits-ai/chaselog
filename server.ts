@@ -352,7 +352,7 @@ app.post('/api/transactions', async (req, res) => {
 
         return res.json(mapTx(txResult.rows[0]));
       } catch (err) {
-        console.error("Error record transaction in postgres database:", err);
+        console.error("Error recording transaction in postgres database, falling back to memory:", err);
       }
     }
   }
