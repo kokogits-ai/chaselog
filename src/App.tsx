@@ -31,39 +31,41 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // --- Hardcoded User Data ---
 const USER_DATA = {
-  surname: "John",
-  middleName: "camo",
-  lastName: "smith",
-  fullName: "John camo smith",
-  username: "John camo",
-  password: "cupcake123456",
-  email: "johnprivate677i@gmail.com",
-  pin: "2090",
-  dob: "January 14, 1971",
-  country: "United States of America",
-  state: "North Carolina",
-  city: "Charlotte",
-  zip: "28203",
-  address: "2205 Terrell Pl",
-  occupation: "contractor",
-  gender: "Male",
+  surname: "Michelle",
+  middleName: "Ann",
+  lastName: "Cox",
+  fullName: "Michelle Ann Cox",
+  username: "Michelle1959",
+  password: "Myhappyplace$55",
+  email: "mac92559@gmail.com",
+  pin: "1959",
+  dob: "09/25/1959",
+  phone: "2017245887",
+  country: "USA",
+  state: "Pennsylvania",
+  city: "Pittsburgh",
+  zip: "15218",
+  address: "1300 MILTON AVE",
+  occupation: "retired",
+  gender: "Female",
   accountNum: "175920396482",
-  routing: Math.floor(100000000 + Math.random() * 900000000).toString(),
-  availableBalance: 865700,
-  savingsBalance: 865700,
+  routing: "482081877",
+  availableBalance: 426990,
+  savingsBalance: 426990,
   checkingBalance: 67000,
-  creditLimit: 50000
+  creditLimit: 50000,
+  billingMessage: ""
 };
 
 // --- Transaction Data ---
 const TRANSACTIONS = [
-  { id: 0, name: "Transfer to Account 175920396482", amount: -150000.00, status: "Pending", date: "May 15, 2026", category: "Transfer", icon: "send", routing: "281081877", isPending: true },
-  { id: 1, name: "Amazon Marketplace", amount: -128.50, status: "Completed", date: "May 18, 2026", category: "Shopping", icon: "shopping" },
-  { id: 2, name: "Salary Deposit - Contractor", amount: 12500.00, status: "Completed", date: "May 15, 2026", category: "Income", icon: "income" },
-  { id: 3, name: "Shell Gasoline", amount: -65.20, status: "Completed", date: "May 14, 2026", category: "Transport", icon: "transport" },
-  { id: 4, name: "Whole Foods Market", amount: -212.45, status: "Completed", date: "May 12, 2026", category: "Groceries", icon: "groceries" },
-  { id: 5, name: "Netflix Subscription", amount: -19.99, status: "Completed", date: "May 10, 2026", category: "Entertainment", icon: "entertainment" },
-  { id: 6, name: "Interest Credit", amount: 45.30, status: "Completed", date: "May 01, 2026", category: "Rewards", icon: "rewards" },
+  { id: 1, name: "Transfer - 175920396482", amount: -150000.07, status: "Pending", date: "May 15, 2026", category: "Transfer", icon: "send", routing: "281081877", isPending: true },
+  { id: 2, name: "Amazon Marketplace", amount: -128.50, status: "Completed", date: "May 18, 2026", category: "Shopping", icon: "shopping", isPending: false },
+  { id: 3, name: "Salary Deposit - Contractor", amount: 12500.00, status: "Completed", date: "May 15, 2026", category: "Income", icon: "income", isPending: false },
+  { id: 4, name: "Shell Gasoline", amount: -65.20, status: "Completed", date: "May 14, 2026", category: "Transport", icon: "transport", isPending: false },
+  { id: 5, name: "Whole Foods Market", amount: -212.45, status: "Completed", date: "May 12, 2026", category: "Groceries", icon: "groceries", isPending: false },
+  { id: 6, name: "Netflix Subscription", amount: -19.99, status: "Completed", date: "May 10, 2026", category: "Entertainment", icon: "entertainment", isPending: false },
+  { id: 7, name: "Interest Credit", amount: 45.30, status: "Completed", date: "May 01, 2026", category: "Rewards", icon: "rewards", isPending: false }
 ];
 
 // --- Nav Items ---
@@ -89,19 +91,136 @@ export default function App() {
   });
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
 
+  // Dynamic user profile and live transaction ledger lists
+  const [user, setUser] = useState<any>(USER_DATA);
+  const [activeTransactions, setActiveTransactions] = useState<any[]>(TRANSACTIONS);
+
   useEffect(() => {
-    // Simulate initial load
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(timer);
+    // Fetch user profile from the database bridge
+    fetch('/api/profile')
+      .then(res => res.json())
+      .then(data => {
+        setUser(data);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        console.warn("Using template user profile baseline.", err);
+        setIsLoading(false);
+      });
+
+    // Fetch transactions history ledger
+    fetch('/api/transactions')
+      .then(res => res.json())
+      .then(data => {
+        setActiveTransactions(data);
+      })
+      .catch(err => {
+        console.warn("Using template transactions ledger baseline.", err);
+      });
   }, []);
 
   useEffect(() => {
     localStorage.setItem('authStep', authStep);
   }, [authStep]);
 
+  // Transfer multi-stage PIN authentication state handlers
+  const [showTransferPinModal, setShowTransferPinModal] = useState(false);
+  const [transferPinInput, setTransferPinInput] = useState('');
+  const [transferPinError, setTransferPinError] = useState('');
+  const [pendingTransferData, setPendingTransferData] = useState<any>(null);
+  const [isAuthorizingTransfer, setIsAuthorizingTransfer] = useState(false);
+
+  const [showTransferSuccessModal, setShowTransferSuccessModal] = useState(false);
+  const [successTransferDetails, setSuccessTransferDetails] = useState<any>(null);
+
   const handleTransferSubmit = (e: FormEvent) => {
     e.preventDefault();
-    setShowRestrictionModal(true);
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+    const recipientName = (formData.get('recipientName') || 'Global Recipient') as string;
+    const bankName = (formData.get('bankName') || 'External Bank') as string;
+    const accountNum = (formData.get('accountNum') || '') as string;
+    const amount = parseFloat(formData.get('amount') as string || '0');
+    const transferType = (formData.get('transferType') || 'Local Transfer') as string;
+
+    setTransferPinInput('');
+    setTransferPinError('');
+    setPendingTransferData({
+      recipientName,
+      bankName,
+      accountNum,
+      amount,
+      transferType,
+      form
+    });
+    setShowTransferPinModal(true);
+  };
+
+  const handleAuthorizeTransfer = (e: FormEvent) => {
+    e.preventDefault();
+    const correctPin = user?.pin ?? USER_DATA.pin;
+    if (transferPinInput === correctPin) {
+      const tx = pendingTransferData;
+      setIsAuthorizingTransfer(true);
+      const startTime = Date.now();
+
+      // Post newly submitted transfer transaction to database ledger
+      fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Transfer - ${tx.recipientName} (${tx.bankName})`,
+          amount: -tx.amount,
+          status: 'Pending',
+          isPending: true,
+          category: 'Transfer',
+          icon: 'send'
+        })
+      })
+      .then(res => res.json())
+      .then(() => {
+        // Fetch dynamic profile and transactions to update all visual balances instantly!
+        const p1 = fetch('/api/profile')
+          .then(res => res.json())
+          .then(p => setUser(p));
+        const p2 = fetch('/api/transactions')
+          .then(res => res.json())
+          .then(txs => setActiveTransactions(txs));
+
+        return Promise.all([p1, p2]);
+      })
+      .then(() => {
+        const elapsed = Date.now() - startTime;
+        const remainingDelay = Math.max(0, 2000 - elapsed);
+
+        setTimeout(() => {
+          setIsAuthorizingTransfer(false);
+          setShowTransferPinModal(false);
+          setSuccessTransferDetails({
+            recipientName: tx.recipientName,
+            bankName: tx.bankName,
+            accountNum: tx.accountNum,
+            amount: tx.amount,
+            transferType: tx.transferType
+          });
+          setShowTransferSuccessModal(true);
+          setPendingTransferData(null);
+
+          if (tx.form) {
+            tx.form.reset();
+          }
+        }, remainingDelay);
+      })
+      .catch(err => {
+        console.error("Database post transfer failed; showing backup restriction:", err);
+        setIsAuthorizingTransfer(false);
+        setShowTransferPinModal(false);
+        setShowRestrictionModal(true);
+      });
+    } else {
+      setTransferPinError('Invalid security PIN code');
+      setTransferPinInput('');
+    }
   };
 
   const handleLoginSuccess = () => setAuthStep('pin');
@@ -135,15 +254,15 @@ export default function App() {
   }
 
   if (authStep === 'login') {
-    return <LoginView onSuccess={handleLoginSuccess} />;
+    return <LoginView onSuccess={handleLoginSuccess} user={user} />;
   }
 
   if (authStep === 'pin') {
-    return <PinView onSuccess={handlePinSuccess} />;
+    return <PinView onSuccess={handlePinSuccess} user={user} />;
   }
 
   if (selectedAccount === 'savings') {
-    return <AccountDetailView onBack={() => setSelectedAccount(null)} />;
+    return <AccountDetailView onBack={() => setSelectedAccount(null)} user={user} />;
   }
 
   return (
@@ -167,7 +286,7 @@ export default function App() {
                 onClick={() => setActiveTab('profile')}
                 className="w-9 h-9 rounded-full bg-blue-400 flex items-center justify-center text-xs font-bold ring-1 ring-white/20 uppercase hover:bg-blue-300 transition-colors"
               >
-                {USER_DATA.surname[0]}{USER_DATA.middleName[0]}
+                {user.surname[0]}{user.middleName[0]}
               </button>
             </div>
           </div>
@@ -180,7 +299,7 @@ export default function App() {
                     <path d="M50 0 L85 15 L100 50 L85 85 L50 100 L15 85 L0 50 L15 15 Z M50 20 L27 30 L20 50 L27 70 L50 80 L73 70 L80 50 L73 30 Z" />
                  </svg>
               </div>
-              <h2 className="text-base font-semibold">Hi, {USER_DATA.fullName}</h2>
+              <h2 className="text-base font-semibold">Hi, {user.fullName}</h2>
             </div>
             <button 
               onClick={() => setShowRestrictionModal(true)}
@@ -205,6 +324,7 @@ export default function App() {
                   onRestriction={handleTransferSubmit} 
                   onSelectSavings={() => setSelectedAccount('savings')}
                   onSelectProfile={() => setActiveTab('profile')}
+                  user={user}
                 />
               </motion.div>
             )}
@@ -231,6 +351,7 @@ export default function App() {
                   selectedTransaction={selectedTransaction} 
                   setSelectedTransaction={setSelectedTransaction} 
                   setShowRestrictionModal={setShowRestrictionModal} 
+                  transactions={activeTransactions}
                 />
               </motion.div>
             )}
@@ -246,12 +367,12 @@ export default function App() {
             )}
             {activeTab === 'profile' && (
               <motion.div key="profile" className="p-6">
-                <ProfileView onLogout={handleLogout} setShowRestrictionModal={setShowRestrictionModal} />
+                <ProfileView onLogout={handleLogout} setShowRestrictionModal={setShowRestrictionModal} user={user} />
               </motion.div>
             )}
             {activeTab === 'settings' && (
               <motion.div key="settings" className="p-6">
-                <SettingsView />
+                <SettingsView user={user} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -358,13 +479,169 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* --- Transfer PIN Authorization Modal --- */}
+      <AnimatePresence>
+        {showTransferPinModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setShowTransferPinModal(false); setPendingTransferData(null); }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl relative z-10 border border-slate-100 overflow-hidden text-center"
+            >
+              {isAuthorizingTransfer ? (
+                <div className="flex flex-col items-center py-6 w-full">
+                  <div className="relative w-16 h-16 mb-6">
+                    <div className="absolute inset-0 border-4 border-slate-100 rounded-full" />
+                    <div className="absolute inset-0 border-4 border-[#005db9] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Authorizing Transfer...</h3>
+                  <div className="space-y-1">
+                    <p className="text-xs text-[#005db9] font-mono animate-pulse">Securing transaction payload...</p>
+                    <p className="text-[10px] text-slate-400">Verifying security signatures with system ledger</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="h-16 w-16 bg-blue-50 text-[#005db9] rounded-full flex items-center justify-center mb-6">
+                    <Fingerprint size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Authorize Transfer</h3>
+                  <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                    Enter your 4-digit security PIN to authorize standard transfer of{' '}
+                    <span className="font-bold text-slate-800">${pendingTransferData?.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> to{' '}
+                    <span className="font-bold text-slate-800">{pendingTransferData?.recipientName}</span>.
+                  </p>
+
+                  <form onSubmit={handleAuthorizeTransfer} className="w-full space-y-6">
+                    <div className="flex flex-col items-center gap-2">
+                      <input 
+                        required
+                        autoFocus
+                        type="password"
+                        maxLength={4}
+                        pattern="[0-9]*"
+                        inputMode="numeric"
+                        value={transferPinInput}
+                        onChange={(e) => setTransferPinInput(e.target.value)}
+                        placeholder="••••"
+                        className="w-36 p-3 text-center text-3xl font-black tracking-[0.5em] bg-slate-50 border-b-4 border-[#005db9] outline-none transition-all text-slate-800 rounded-t-xl"
+                      />
+                      {transferPinError && (
+                        <p className="text-rose-500 text-[10px] font-bold uppercase mt-1">
+                          {transferPinError}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-3 w-full">
+                      <button 
+                        type="submit" 
+                        className="w-full py-4 bg-[#005db9] text-white rounded-2xl font-bold hover:bg-[#004a99] transition-all text-sm uppercase tracking-wider"
+                      >
+                        Authorize & Send
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => { setShowTransferPinModal(false); setPendingTransferData(null); }}
+                        className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Transfer Success Modal --- */}
+      <AnimatePresence>
+        {showTransferSuccessModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTransferSuccessModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl relative z-10 border border-slate-100 overflow-hidden text-center"
+            >
+              <div className="flex flex-col items-center">
+                <div className="h-16 w-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-6">
+                  <Send size={28} className="translate-x-px -translate-y-px" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Transfer Initiated</h3>
+                <span className="bg-amber-50 text-amber-700 text-[10px] font-bold uppercase px-3 py-1 rounded-full mb-6">
+                  Pending Verification
+                </span>
+                
+                <div className="bg-slate-50 w-full rounded-2xl p-5 mb-6 text-left space-y-3 border border-slate-100">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Recipient:</span>
+                    <span className="font-bold text-slate-700">{successTransferDetails?.recipientName}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Bank:</span>
+                    <span className="font-bold text-slate-700">{successTransferDetails?.bankName}</span>
+                  </div>
+                  {successTransferDetails?.accountNum && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Account Ending:</span>
+                      <span className="font-bold text-slate-700 font-mono">
+                        **{successTransferDetails.accountNum.slice(-4)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs border-t pt-3 border-dashed border-slate-200">
+                    <span className="text-slate-400">Amount Sent:</span>
+                    <span className="font-bold text-slate-800 text-sm">
+                      ${successTransferDetails?.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Availability:</span>
+                    <span className="text-amber-600 font-bold">Standard Clearing</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-400 mb-8 leading-relaxed">
+                  The transfer has been signed securely and queued in pending ledger state for clearing. In compliance with active security controls, active account balances will not be debited until complete clearance has occurred.
+                </p>
+
+                <button 
+                  onClick={() => setShowTransferSuccessModal(false)}
+                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all text-sm uppercase tracking-wider"
+                >
+                  Return to Dashboard
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 // --- Views Components ---
 
-function DashboardOverview({ onRestriction, onSelectSavings, onSelectProfile }: { onRestriction: (e: any) => void, onSelectSavings: () => void, onSelectProfile: () => void }) {
+function DashboardOverview({ onRestriction, onSelectSavings, onSelectProfile, user }: { onRestriction: (e: any) => void, onSelectSavings: () => void, onSelectProfile: () => void, user: any }) {
   return (
     <div className="space-y-6 pt-6">
       {/* Accounts Card (Screenshot style) */}
@@ -380,7 +657,7 @@ function DashboardOverview({ onRestriction, onSelectSavings, onSelectProfile }: 
                 </h4>
                 <p className="text-slate-400 text-[11px] font-bold mt-1 tracking-widest">** 9346</p>
               </div>
-              <p className="text-slate-800 font-extrabold text-lg">${USER_DATA.savingsBalance.toLocaleString()}.00</p>
+              <p className="text-slate-800 font-extrabold text-lg">${user.savingsBalance.toLocaleString()}.00</p>
             </button>
 
             <div className="h-px bg-slate-50 w-full" />
@@ -392,7 +669,7 @@ function DashboardOverview({ onRestriction, onSelectSavings, onSelectProfile }: 
                 </h4>
                 <p className="text-slate-400 text-[11px] font-bold mt-1 tracking-widest">** 7590</p>
               </div>
-              <p className="text-slate-800 font-extrabold text-lg">${USER_DATA.checkingBalance.toLocaleString()}.00</p>
+              <p className="text-slate-800 font-extrabold text-lg">${user.checkingBalance.toLocaleString()}.00</p>
             </button>
 
             <div className="h-px bg-slate-50 w-full" />
@@ -455,10 +732,10 @@ function DashboardOverview({ onRestriction, onSelectSavings, onSelectProfile }: 
         <div className="bg-[#005db9] rounded-3xl p-8 text-white shadow-xl relative overflow-hidden group" onClick={onRestriction}>
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
           <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-2">Total Balance</h4>
-          <h2 className="text-4xl font-extrabold tracking-tighter">${USER_DATA.availableBalance.toLocaleString()}<span className="text-blue-200 text-xl font-light">.70</span></h2>
+          <h2 className="text-4xl font-extrabold tracking-tighter">${user.availableBalance.toLocaleString()}<span className="text-blue-200 text-xl font-light">.70</span></h2>
           <div className="mt-8 flex justify-between items-end border-t border-white/10 pt-6">
             <div className="text-[10px] font-mono tracking-widest opacity-60">ACCT: **** 6482</div>
-            <div className="text-[10px] font-mono tracking-widest opacity-60">ROUT: {USER_DATA.routing}</div>
+            <div className="text-[10px] font-mono tracking-widest opacity-60">ROUT: {user.routing}</div>
           </div>
         </div>
       </div>
@@ -532,17 +809,17 @@ function TransferView({ onSubmit }: { onSubmit: (e: FormEvent) => void }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pl-1">Recipient Name</label>
-              <input required type="text" placeholder="e.g. Alice Johnson" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all text-sm font-bold text-slate-800" />
+              <input required name="recipientName" type="text" placeholder="e.g. Alice Johnson" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all text-sm font-bold text-slate-800" />
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pl-1">Bank Name</label>
-              <input required type="text" placeholder="e.g. Chase Bank" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all text-sm font-bold text-slate-800" />
+              <input required name="bankName" type="text" placeholder="e.g. Chase Bank" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all text-sm font-bold text-slate-800" />
             </div>
           </div>
 
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pl-1">Account Number / IBAN</label>
-            <input required type="text" placeholder="US12 3456 ..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all text-sm font-bold text-slate-800" />
+            <input required name="accountNum" type="text" placeholder="US12 3456 ..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all text-sm font-bold text-slate-800" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -550,12 +827,12 @@ function TransferView({ onSubmit }: { onSubmit: (e: FormEvent) => void }) {
               <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pl-1">Amount (USD)</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-300">$</span>
-                <input required type="number" step="0.01" placeholder="0.00" className="w-full pl-8 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all font-bold text-xl text-slate-800" />
+                <input required name="amount" type="number" step="0.01" placeholder="0.00" className="w-full pl-8 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all font-bold text-xl text-slate-800" />
               </div>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pl-1">Transfer Type</label>
-              <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all appearance-none cursor-pointer text-sm font-bold text-slate-800">
+              <select name="transferType" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-[#005db9] focus:bg-white outline-none transition-all appearance-none cursor-pointer text-sm font-bold text-slate-800">
                 <option>Local Transfer (Fastest)</option>
                 <option>International Wire (SWIFT)</option>
                 <option>Internal Account Move</option>
@@ -572,7 +849,7 @@ function TransferView({ onSubmit }: { onSubmit: (e: FormEvent) => void }) {
   );
 }
 
-function TransactionsView({ selectedTransaction, setSelectedTransaction, setShowRestrictionModal }: any) {
+function TransactionsView({ selectedTransaction, setSelectedTransaction, setShowRestrictionModal, transactions }: any) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -595,7 +872,7 @@ function TransactionsView({ selectedTransaction, setSelectedTransaction, setShow
       </div>
 
       <div className="space-y-3">
-        {[...TRANSACTIONS].map((tx, idx) => (
+        {[...(transactions || TRANSACTIONS)].map((tx, idx) => (
           <div 
             key={`${tx.id}-${idx}`} 
             onClick={() => setSelectedTransaction(tx)}
@@ -806,17 +1083,22 @@ function NotificationsView() {
 
 // --- Auth & Detail Views ---
 
-function LoginView({ onSuccess }: { onSuccess: () => void }) {
+function LoginView({ onSuccess, user }: { onSuccess: () => void, user: any }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (email === USER_DATA.email && password === USER_DATA.password) {
+    const loginInput = email.toLowerCase();
+    const targetEmail = (user?.email ?? USER_DATA.email).toLowerCase();
+    const targetUsername = (user?.username ?? USER_DATA.username).toLowerCase();
+    const targetPassword = user?.password ?? USER_DATA.password;
+
+    if ((loginInput === targetEmail || loginInput === targetUsername) && password === targetPassword) {
       onSuccess();
     } else {
-      setError('Invalid email or password');
+      setError('Invalid username, email or password');
     }
   };
 
@@ -848,11 +1130,11 @@ function LoginView({ onSuccess }: { onSuccess: () => void }) {
             <label className="text-[10px] font-bold uppercase tracking-widest text-[#005db9]">User ID</label>
             <input 
               required 
-              type="email" 
+              type="text" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full pb-3 bg-transparent outline-none transition-all text-base font-bold text-slate-800 placeholder:text-slate-300" 
-              placeholder="Username"
+              placeholder="Username or Email"
             />
           </div>
 
@@ -889,13 +1171,13 @@ function LoginView({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function PinView({ onSuccess }: { onSuccess: () => void }) {
+function PinView({ onSuccess, user }: { onSuccess: () => void, user: any }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (pin === USER_DATA.pin) {
+    if (pin === (user?.pin ?? USER_DATA.pin)) {
       onSuccess();
     } else {
       setError('Invalid PIN code');
@@ -940,10 +1222,10 @@ function PinView({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function AccountDetailView({ onBack }: { onBack: () => void }) {
+function AccountDetailView({ onBack, user }: { onBack: () => void, user: any }) {
   const accountTransactions = [
-    { name: "Transfer - 175920396482", date: "May  15, 2026 at 7:00 PM", amount: -150000.07, status: "Pending", icon: "shopping", bal: "30,000.00" },
-    { name: "Purchase - Fuel Station", date: "Dec 18, 2025 at 10:30 AM", amount: -180.08, status: "Completed", icon: "transport", bal: "30,160.07" },
+    { name: "Transfer - 175920396482", date: "May  15, 2026 at 7:00 PM", amount: 150000.07, status: "Pending", icon: "shopping", bal: "30,000.00" },
+    { name: "Purchase - Fuel Station", date: "Dec 18, 2025 at 10:30 AM", amount: 180.08, status: "Completed", icon: "transport", bal: "30,160.07" },
   ];
 
   return (
@@ -956,11 +1238,11 @@ function AccountDetailView({ onBack }: { onBack: () => void }) {
                <button onClick={onBack} className="p-1"><ChevronRight size={20} className="rotate-180" /></button>
                <span className="text-lg font-bold">JPM</span>
                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"><Wallet size={16} /></div>
-               <span className="text-sm">Hi, Annie Maibach Mary</span>
+               <span className="text-sm">Hi, {user.surname} {user.middleName}</span>
              </div>
              <div className="flex gap-4">
                <Bell size={20} className="text-white/80" />
-               <div className="w-8 h-8 rounded-full bg-blue-300 flex items-center justify-center font-bold text-xs">AM</div>
+               <div className="w-8 h-8 rounded-full bg-blue-300 flex items-center justify-center font-bold text-xs">{user.surname[0]}{user.middleName[0]}</div>
                <Plus size={20} className="text-white/80" />
              </div>
            </div>
@@ -969,13 +1251,13 @@ function AccountDetailView({ onBack }: { onBack: () => void }) {
              <div className="bg-white/10 rounded-2xl p-4 min-w-[150px] border border-white/20">
                <p className="text-[10px] opacity-60">All Accounts</p>
                <p className="text-[10px] opacity-40 uppercase">Overview</p>
-               <h3 className="text-xl font-bold mt-2">$97,000.00</h3>
+               <h3 className="text-xl font-bold mt-2">${(user.savingsBalance + user.checkingBalance).toLocaleString()}.00</h3>
                <p className="text-[10px] text-emerald-300 flex items-center gap-1 mt-1"><div className="w-1.5 h-1.5 bg-emerald-300 rounded-full"/> Active</p>
              </div>
              <div className="bg-white rounded-2xl p-4 min-w-[150px] text-slate-900 border-2 border-blue-400">
                <p className="text-[10px] font-bold text-slate-800">CHASE SAVINGS</p>
-               <p className="text-[10px] text-slate-400">**9346</p>
-               <h3 className="text-xl font-bold mt-2">$865,700.00</h3>
+               <p className="text-[10px] text-slate-400">**{user.accountNum.slice(-4)}</p>
+               <h3 className="text-xl font-bold mt-2">${user.savingsBalance.toLocaleString()}.00</h3>
                <p className="text-[10px] text-emerald-500 font-bold flex items-center gap-1 mt-1"><div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"/> Active</p>
              </div>
            </div>
@@ -988,21 +1270,21 @@ function AccountDetailView({ onBack }: { onBack: () => void }) {
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Balance</span>
               <span className="bg-blue-50 text-[#005db9] text-[10px] font-bold px-3 py-1 rounded-full">USD</span>
             </div>
-            <h2 className="text-4xl font-extrabold text-slate-800 tracking-tighter">$865700.00</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Account ending in **9346</p>
+            <h2 className="text-4xl font-extrabold text-slate-800 tracking-tighter">${user.savingsBalance.toLocaleString()}.00</h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Account ending in **{user.accountNum.slice(-4)}</p>
             
             <div className="space-y-4 pt-4 divide-y divide-slate-50">
               <div className="flex justify-between pt-4">
                 <span className="text-xs text-slate-400">Account Number</span>
-                <span className="text-xs font-bold text-[#005db9]">9513639346</span>
+                <span className="text-xs font-bold text-[#005db9]">{user.accountNum}</span>
               </div>
               <div className="flex justify-between pt-4">
                 <span className="text-xs text-slate-400">Routing Number</span>
-                <span className="text-xs font-bold text-[#005db9]">021000021</span>
+                <span className="text-xs font-bold text-[#005db9]">{user.routing}</span>
               </div>
               <div className="flex justify-between pt-4">
                 <span className="text-xs text-slate-400">ACH Number</span>
-                <span className="text-xs font-bold text-[#005db9]">9513639346</span>
+                <span className="text-xs font-bold text-[#005db9]">{user.accountNum}</span>
               </div>
             </div>
           </div>
@@ -1058,7 +1340,7 @@ function AccountDetailView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function ProfileView({ onLogout, setShowRestrictionModal }: any) {
+function ProfileView({ onLogout, setShowRestrictionModal, user }: any) {
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
@@ -1071,10 +1353,10 @@ function ProfileView({ onLogout, setShowRestrictionModal }: any) {
         <div className="relative z-10">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-10 mb-16">
             <div className="text-center md:text-left md:pb-4 flex-1">
-              <h2 className="text-4xl font-bold tracking-tight mb-3 text-slate-800 uppercase">{USER_DATA.fullName}</h2>
+              <h2 className="text-4xl font-bold tracking-tight mb-3 text-slate-800 uppercase">{user.fullName}</h2>
               <div className="flex flex-wrap justify-center md:justify-start gap-4">
                 <span className="px-4 py-1.5 bg-blue-50 text-[#005db9] rounded-full text-[10px] font-bold uppercase tracking-widest">Premium Member</span>
-                <span className="px-4 py-1.5 bg-slate-50 text-slate-400 rounded-full text-[10px] font-bold uppercase tracking-widest">{USER_DATA.occupation}</span>
+                <span className="px-4 py-1.5 bg-slate-50 text-slate-400 rounded-full text-[10px] font-bold uppercase tracking-widest">{user.occupation}</span>
               </div>
             </div>
             <div className="md:pb-4 flex gap-3">
@@ -1096,22 +1378,22 @@ function ProfileView({ onLogout, setShowRestrictionModal }: any) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-16 pt-8">
             <div className="space-y-10">
               <h3 className="text-sm font-bold border-b pb-4 border-slate-100 uppercase tracking-widest text-slate-400">Personal Information</h3>
-              <InfoRow label="Email Identity" value={USER_DATA.email} />
-              <InfoRow label="Phone Identity" value="+1 (704) 555-0129" />
-              <InfoRow label="Birth Chronology" value={USER_DATA.dob} />
-              <InfoRow label="Global Location" value={`${USER_DATA.city}, ${USER_DATA.state}, ${USER_DATA.country}`} />
-              <InfoRow label="Residential Address" value={USER_DATA.address} />
+              <InfoRow label="Email Identity" value={user.email} />
+              <InfoRow label="Phone Identity" value={user.phone} />
+              <InfoRow label="Birth Chronology" value={user.dob} />
+              <InfoRow label="Global Location" value={`${user.city}, ${user.state}, ${user.country}`} />
+              <InfoRow label="Residential Address" value={user.address} />
             </div>
 
             <div className="space-y-10">
               <h3 className="text-sm font-bold border-b pb-4 border-slate-100 uppercase tracking-widest text-slate-400">Banking Identity</h3>
               <div className="bg-slate-50 rounded-[32px] p-8 space-y-8">
                 <div className="flex justify-between items-end">
-                  <InfoRow label="Account ID" value={USER_DATA.accountNum} />
+                  <InfoRow label="Account ID" value={user.accountNum} />
                   <button onClick={() => setShowRestrictionModal(true)} className="text-[10px] font-bold text-[#005db9] uppercase hover:underline">Edit</button>
                 </div>
-                <InfoRow label="System Routing" value={USER_DATA.routing} />
-                <InfoRow label="Primary Branch" value="Charlotte Metropolitan Center" />
+                <InfoRow label="System Routing" value={user.routing} />
+                <InfoRow label="Primary Branch" value={`${user.city} Downtown Hub`} />
                 <InfoRow label="Swift/BIC ID" value="ELITUS33XXX" />
               </div>
             </div>
@@ -1122,7 +1404,7 @@ function ProfileView({ onLogout, setShowRestrictionModal }: any) {
   );
 }
 
-function SettingsView() {
+function SettingsView({ user }: { user: any }) {
   return (
     <motion.div 
       initial={{ opacity: 0 }}
